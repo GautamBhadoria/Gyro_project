@@ -79,28 +79,32 @@ class VideoPlayerApp:
     def play_video(self):
         if self.cap:
             self.cap.release()
+        
+        self.fps = self.fps_scale.get()
         self.cap = cv2.VideoCapture(self.video_path)
+        self.cap.set(cv2.CAP_PROP_FPS, self.fps)
         if not self.cap.isOpened():
             print("Error: Unable to open video.")
             return
         self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.progress["maximum"] = self.total_frames
         self.update_video()
 
     def update_video(self):
-        if self.paused:
-            return
         ret, frame = self.cap.read()
         if ret:
-            self.display_frame(frame)
-            if self.fps==0:
-                self.after_id = self.root.after(int(100000000), self.update_video)
+            if self.vr_mode:
+                self.display_vr_frame(frame)
             else:
-                self.after_id = self.root.after(int(1000 / self.fps), self.update_video)
+                self.display_frame(frame)
+            if self.fps==0:
+                self.root.after(int(10000000), self.update_video)
+            else:
+                self.root.after(int(1000 / self.fps), self.update_video)
             self.update_progress_bar()
         else:
             self.cap.release()
-
     def display_frame(self, frame):
         # Resize frame to full canvas size
         width, height = self.canvas.winfo_width(), self.canvas.winfo_height()
@@ -114,6 +118,20 @@ class VideoPlayerApp:
     def update_progress_bar(self):
         current_frame = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
         self.progress["value"] = current_frame
+    def display_vr_frame(self, frame):
+        # Resize the frame to half width for side-by-side VR
+        width, height = self.canvas.winfo_width(), self.canvas.winfo_height()
+        frame = cv2.resize(frame, (width // 2, height))
+        
+        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(img)
+        img = ImageTk.PhotoImage(img)
+
+        # Display the same video side by side
+        self.canvas.config(width=img.width() * 2, height=img.height())
+        self.canvas.create_image(0, 0, anchor=tk.NW, image=img)
+        self.canvas.create_image(img.width(), 0, anchor=tk.NW, image=img)
+        self.canvas.img = img
 
     def toggle_vr_mode(self):
         self.vr_mode = not self.vr_mode
